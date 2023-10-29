@@ -7,19 +7,18 @@ import {
   StyleSheet,
   FlatList,
   TouchableOpacity,
-  StatusBar,
+  KeyboardAvoidingView,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const TodoInput = () => {
   const [todoText, setTodoText] = useState('');
   const [todos, setTodos] = useState([]);
-  const [editingTodoIndex, setEditingTodoIndex] = useState(null);
-  const [editedText, setEditedText] = useState('');
-  const [selectedTodos, setSelectedTodos] = useState([]); // To keep track of selected todos
+  const [completedTodos, setCompletedTodos] = useState([]);
+  const [editingIndex, setEditingIndex] = useState(null);
+  const [selectedTodoIndex, setSelectedTodoIndex] = useState(null);
 
   useEffect(() => {
-    // Load saved todos from AsyncStorage when the component mounts
     loadTodosFromStorage();
   }, []);
 
@@ -42,172 +41,201 @@ const TodoInput = () => {
     }
   };
 
+  const saveCompletedToStorage = async (completed) => {
+    try {
+      await AsyncStorage.setItem('completedTodos', JSON.stringify(completed));
+    } catch (error) {
+      console.error('Error saving completed todos to AsyncStorage: ', error);
+    }
+  };
+
   const handleInputChange = (text) => {
     setTodoText(text);
   };
 
   const handleAddTodo = () => {
     if (todoText.trim() !== '') {
-      const updatedTodos = [...todos, { text: todoText }];
+      const newTodo = { text: todoText, done: false };
+      const updatedTodos = [...todos, newTodo];
       setTodos(updatedTodos);
       saveTodosToStorage(updatedTodos);
       setTodoText('');
     }
   };
 
-  const handleLongPress = (index) => {
-    // Set the index of the item to be edited
-    setEditingTodoIndex(index);
-    setEditedText(todos[index].text);
-  };
-
-  const handleEditTodo = () => {
-    // Update the todo text and clear the editing state
+  const handleToggleDone = (index) => {
     const updatedTodos = [...todos];
-    updatedTodos[editingTodoIndex].text = editedText;
+    updatedTodos[index].done = !updatedTodos[index].done;
     setTodos(updatedTodos);
     saveTodosToStorage(updatedTodos);
-    setEditingTodoIndex(null);
-  };
 
-  const handleToggleSelectTodo = (index) => {
-    // Toggle the selected state of the todo item
-    if (selectedTodos.includes(index)) {
-      setSelectedTodos(selectedTodos.filter((item) => item !== index));
-    } else {
-      setSelectedTodos([...selectedTodos, index]);
+    if (updatedTodos[index].done) {
+      // If the task is marked as done, move it to completed tasks
+      const completedTodo = updatedTodos[index];
+      setCompletedTodos((prevCompleted) => [...prevCompleted, completedTodo]);
+      saveCompletedToStorage([...completedTodos, completedTodo]);
+
+      updatedTodos.splice(index, 1);
+      saveTodosToStorage(updatedTodos);
     }
   };
 
-  const handleDeleteSelectedTodos = () => {
-    // Delete the selected todos
-    const updatedTodos = todos.filter((_, index) => !selectedTodos.includes(index));
-    setTodos(updatedTodos);
-    saveTodosToStorage(updatedTodos);
-    setSelectedTodos([]);
+  const handleEditTodo = (index) => {
+    setEditingIndex(index);
+    setTodoText(todos[index].text);
   };
 
-  const handleDoneTodos = () => {
-    // Move selected todos to the "Tasks Done" storage
-    const doneTodos = selectedTodos.map((index) => todos[index].text);
-
-    // Add the doneTodos to the "Tasks Done" storage
-    saveDoneTasks(doneTodos);
-
-    // Remove the selected todos from the current todos list
-    const updatedTodos = todos.filter((_, index) => !selectedTodos.includes(index));
-    setTodos(updatedTodos);
-
-    // Clear the selected todos
-    setSelectedTodos([]);
+  const handleUpdateTodo = () => {
+    if (editingIndex !== null) {
+      const updatedTodos = [...todos];
+      updatedTodos[editingIndex].text = todoText;
+      setTodos(updatedTodos);
+      saveTodosToStorage(updatedTodos);
+      setEditingIndex(null);
+      setTodoText('');
+    }
   };
-  
+
+  const handleRemoveTodo = () => {
+    if (selectedTodoIndex !== null) {
+      const updatedTodos = [...todos];
+      updatedTodos.splice(selectedTodoIndex, 1);
+      setTodos(updatedTodos);
+      saveTodosToStorage(updatedTodos);
+      setSelectedTodoIndex(null);
+    }
+  };
+
+  const handleRemoveCompletedTodo = (index) => {
+    const updatedCompletedTodos = [...completedTodos];
+    updatedCompletedTodos.splice(index, 1);
+    setCompletedTodos(updatedCompletedTodos);
+    saveCompletedToStorage(updatedCompletedTodos);
+  };
 
   return (
-    <View style={styles.container}>
-      <View style={styles.centeredContent}>
-        
-
-
-         <TextInput
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    >
+      <Text style={styles.header}>Todo List</Text>
+      <View style={styles.inputContainer}>
+        <TextInput
           style={styles.input}
-          placeholder="Enter a new sentence"
+          placeholder="Add a new task"
           value={todoText}
           onChangeText={handleInputChange}
         />
-        <View style={styles.buttonContainer}>
-          <Button title="Add" onPress={handleAddTodo} color={"green"} />
-          <Button title="Remove" onPress={handleDeleteSelectedTodos} color="red" />
-
-        </View>
-        <Text style={styles.listTitle} >List:</Text>
-        <FlatList
-          data={todos}
-          keyExtractor={(item, index) => index.toString()}
-          renderItem={({ item, index }) => (
-            <View style={styles.todoItemContainer}>
-              <TouchableOpacity
-                onLongPress={() => handleLongPress(index)}
-                onPress={() => handleToggleSelectTodo(index)}
-                style={styles.todoItem}
-              >
-                {selectedTodos.includes(index) ? (
-                  <Text style={styles.selectedTodoText}>{item.text}</Text>
-                ) : editingTodoIndex === index ? (
-                  <>
-                    <TextInput
-                      style={styles.editableTodoItem}
-                      value={editedText}
-                      onChangeText={setEditedText}
-                      underlineColorAndroid="transparent"
-                      editable={true}
-                      selectTextOnFocus={true}
-                    />
-                    <Button title="Save" onPress={handleEditTodo} />
-                  </>
-                ) : (
-                  <Text style={styles.todoText}>{item.text}</Text>
-                )}
-              </TouchableOpacity>
-            </View>
-          )}
-        />
+        {editingIndex === null ? (
+          <Button title="Add" onPress={handleAddTodo} color="#5FC4B0" />
+        ) : (
+          <Button title="Update" onPress={handleUpdateTodo} color="#5FC4B0" />
+        )}
       </View>
-    </View>
+      <Text style={styles.listTitle}>Tasks:</Text>
+      <FlatList
+        data={todos}
+        keyExtractor={(item, index) => index.toString()}
+        renderItem={({ item, index }) => (
+          <View style={styles.todoItem}>
+            <TouchableOpacity onPress={() => handleToggleDone(index)}>
+              <Text style={item.done ? styles.doneText : styles.todoText}>
+                {item.text}
+              </Text>
+            </TouchableOpacity>
+            {editingIndex === index ? (
+              <Button title="Update" onPress={handleUpdateTodo} color="#5FC4B0" />
+            ) : (
+              <>
+                <Button title="Edit" onPress={() => handleEditTodo(index)} color="#5FC4B0" />
+                <Button
+                  title="Remove"
+                  onPress={() => handleRemoveTodo(index)} // Fix the remove button
+                  color="#FF5733"
+                />
+              </>
+            )}
+          </View>
+        )}
+      />
+      <Text style={styles.listTitle}>Completed Tasks:</Text>
+      <FlatList
+        data={completedTodos}
+        keyExtractor={(item, index) => index.toString()}
+        renderItem={({ item, index }) => (
+          <View style={styles.completedTodoItem}>
+            <TouchableOpacity onPress={() => handleRemoveCompletedTodo(index)}>
+              <Text style={styles.completedTodoText}>{item.text}</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+      />
+    </KeyboardAvoidingView>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: 'center',
+    backgroundColor: 'aquamarine',
+    padding: 20,
     alignItems: 'center',
   },
-  centeredContent: {
-    width: '100%',
+  header: {
+    fontSize: 30,
+    fontWeight: 'bold',
+    marginBottom: 20,
+    color: 'black',
+  },
+  inputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 20,
   },
   input: {
-    borderColor: 'gray', // Add border
-    borderWidth: 1,
-    padding: 10,
-    marginBottom: -.3,
-  },
-  buttonContainer: {
-    marginBottom: -.2,
+    flex: 1,
+    borderColor: 'green',
+    borderWidth: 3,
+    padding: 12,
+    fontSize: 18,
+    borderRadius: 8,
   },
   listTitle: {
-    marginTop: 10,
-    fontSize: 16,
+    fontSize: 20,
     fontWeight: 'bold',
-    color: 'white'
-  },
-  todoItemContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    color: '#333',
   },
   todoItem: {
-    flex: 1,
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 10,
-    margin: 5,
-  },
-  editableTodoItem: {
-    flex: 1,
-    borderColor: 'gray', // Add border
+    marginVertical: 5,
+    borderColor: '#333',
     borderWidth: 1,
     padding: 10,
+    backgroundColor: 'antiquewhite',
   },
   todoText: {
     flex: 1,
-    fontSize: 16,
+    fontSize: 18,
+    color: 'purple',
   },
-  selectedTodoText: {
+  doneText: {
     flex: 1,
-    fontSize: 16,
-    textDecorationLine: 'underline',
+    fontSize: 18,
+    textDecorationLine: 'line-through',
+    color: '#888',
   },
-
+  completedTodoItem: {
+    borderColor: '#333',
+    borderWidth: 1,
+    padding: 10,
+    backgroundColor: 'lightgreen',
+  },
+  completedTodoText: {
+    fontSize: 18,
+    textDecorationLine: 'line-through',
+  },
 });
 
 export default TodoInput;
