@@ -16,7 +16,6 @@ const TodoInput = () => {
   const [todos, setTodos] = useState([]);
   const [completedTodos, setCompletedTodos] = useState([]);
   const [editingIndex, setEditingIndex] = useState(null);
-  const [selectedTodoIndex, setSelectedTodoIndex] = useState(null);
 
   useEffect(() => {
     loadTodosFromStorage();
@@ -96,14 +95,11 @@ const TodoInput = () => {
     }
   };
 
-  const handleRemoveTodo = () => {
-    if (selectedTodoIndex !== null) {
-      const updatedTodos = [...todos];
-      updatedTodos.splice(selectedTodoIndex, 1);
-      setTodos(updatedTodos);
-      saveTodosToStorage(updatedTodos);
-      setSelectedTodoIndex(null);
-    }
+  const handleRemoveTodo = (index) => {
+    const updatedTodos = [...todos];
+    updatedTodos.splice(index, 1);
+    setTodos(updatedTodos);
+    saveTodosToStorage(updatedTodos);
   };
 
   const handleRemoveCompletedTodo = (index) => {
@@ -111,6 +107,11 @@ const TodoInput = () => {
     updatedCompletedTodos.splice(index, 1);
     setCompletedTodos(updatedCompletedTodos);
     saveCompletedToStorage(updatedCompletedTodos);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingIndex(null);
+    setTodoText('');
   };
 
   return (
@@ -129,7 +130,14 @@ const TodoInput = () => {
         {editingIndex === null ? (
           <Button title="Add" onPress={handleAddTodo} color="#5FC4B0" />
         ) : (
-          <Button title="Update" onPress={handleUpdateTodo} color="#5FC4B0" />
+          <>
+            {editingIndex === null ? null : (
+              
+              <Button title="Update" onPress={handleUpdateTodo} color="#5FC4B0" />
+              
+            )}
+            
+          </>
         )}
       </View>
       <Text style={styles.listTitle}>Tasks:</Text>
@@ -144,15 +152,11 @@ const TodoInput = () => {
               </Text>
             </TouchableOpacity>
             {editingIndex === index ? (
-              <Button title="Update" onPress={handleUpdateTodo} color="#5FC4B0" />
+              <Button title="Cancel" onPress={handleCancelEdit} color="#FF5733" />
             ) : (
               <>
                 <Button title="Edit" onPress={() => handleEditTodo(index)} color="#5FC4B0" />
-                <Button
-                  title="Remove"
-                  onPress={() => handleRemoveTodo(index)} // Fix the remove button
-                  color="#FF5733"
-                />
+                <Button title="Remove" onPress={() => handleRemoveTodo(index)} color="#FF5733" />
               </>
             )}
           </View>
@@ -172,6 +176,7 @@ const TodoInput = () => {
       />
     </KeyboardAvoidingView>
   );
+  
 };
 
 const styles = StyleSheet.create({
